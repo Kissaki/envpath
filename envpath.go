@@ -12,15 +12,22 @@ import (
 )
 
 var printAboutOnlyFlag bool
-var countOnlyFlag bool
+var onlyCountFlag bool
+var onlyListCurrentFlag bool
+var onlyListInvalidFlag bool
+var countFlag bool
 var listCurrentFlag bool
-var listNoInvalidFlag bool
+var listInvalidFlag bool
 
 func init() {
 	flag.BoolVar(&printAboutOnlyFlag, "about", false, "About this executable")
-	flag.BoolVar(&countOnlyFlag, "count", false, "Only count the current number of paths specified in the PATH environment variable and print them")
-	flag.BoolVar(&listCurrentFlag, "list", false, "List the current environment paths")
-	flag.BoolVar(&listNoInvalidFlag, "do-not-list-invalid", false, "Do not list invalid paths")
+	flag.BoolVar(&onlyCountFlag, "only-count", false, "Only print number of paths in the PATH environment variable")
+	flag.BoolVar(&onlyListCurrentFlag, "only-list-valid", false, "Only print valid paths in the PATH environment variable, one per line")
+	flag.BoolVar(&onlyListInvalidFlag, "only-list-invalid", false, "Only print invalid paths in the PATH environment variable, one per line")
+
+	flag.BoolVar(&countFlag, "count", true, "Count and print the number of paths specified in the PATH environment variable")
+	flag.BoolVar(&listCurrentFlag, "list", false, "List the paths in the PATH environment variable")
+	flag.BoolVar(&listInvalidFlag, "list-invalid", true, "List the invalid paths in the PATH environment variable")
 }
 
 func main() {
@@ -32,42 +39,35 @@ func main() {
 		return
 	}
 
-	if countOnlyFlag {
-		paths := getPaths()
-		fmt.Printf("%d", len(paths))
+	if onlyCountFlag {
+		fmt.Printf("%d", len(getPaths()))
 		return
 	}
 
-	fmt.Println("Checking PATH environment variable ...")
+	if onlyListCurrentFlag {
+		validPaths, _ := getSplitPaths()
+		printListNoEndl(validPaths)
+		return
+	}
 
-	paths := getPaths()
-	fmt.Println(fmt.Sprintf("Found %d paths", len(paths)))
+	if onlyListInvalidFlag {
+		_, invalidPaths := getSplitPaths()
+		printListNoEndl(invalidPaths)
+		return
+	}
 
-	validPaths := make([]string, 0)
-	invalidPaths := make([]string, 0)
+	if countFlag {
+		fmt.Println(fmt.Sprintf("Found %d paths", len(getPaths())))
+	}
+
+	validPaths, invalidPaths := getSplitPaths()
 	if listCurrentFlag {
 		fmt.Println("Current paths:")
+		printList(validPaths)
 	}
-	for _, path := range paths {
-		if listCurrentFlag {
-			fmt.Println(path)
-		}
-		fileinfo, err := os.Stat(path)
-		if os.IsNotExist(err) {
-			foundInvalidPath(path)
-			invalidPaths = append(invalidPaths, path)
-		} else {
-			if !fileinfo.IsDir() {
-				foundInvalidPath(path)
-				invalidPaths = append(invalidPaths, path)
-			} else {
-				validPaths = append(validPaths, path)
-			}
-		}
-	}
-	fmt.Println("Invalid paths:")
-	for _, path := range invalidPaths {
-		fmt.Println(path)
+	if listInvalidFlag {
+		fmt.Println("Invalid paths:")
+		printList(invalidPaths)
 	}
 	if len(invalidPaths) > 0 {
 		if askPrintClean() {
@@ -89,9 +89,33 @@ func getPaths() (paths []string) {
 	return strings.Split(path, string(os.PathListSeparator))
 }
 
-func foundInvalidPath(path string) {
-	if !listNoInvalidFlag {
-		fmt.Println("Path does not exist: ", path)
+func getSplitPaths() (validPaths []string, invalidPaths []string) {
+	paths := getPaths()
+	validPaths = make([]string, 0)
+	invalidPaths = make([]string, 0)
+	for _, path := range paths {
+		fileinfo, err := os.Stat(path)
+		if os.IsNotExist(err) || !fileinfo.IsDir() {
+			invalidPaths = append(invalidPaths, path)
+		} else {
+			validPaths = append(validPaths, path)
+		}
+	}
+	return
+}
+
+func printList(list []string) {
+	for _, path := range list {
+		fmt.Println(path)
+	}
+}
+
+func printListNoEndl(list []string) {
+	for i, path := range list {
+		if i != 0 {
+			fmt.Print("\n")
+		}
+		fmt.Print(path)
 	}
 }
 
