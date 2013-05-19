@@ -1,0 +1,4 @@
+envpath
+=======
+
+Script to help manage the PATH environment variable - in Go
